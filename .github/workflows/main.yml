@@ -15,6 +15,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Sacar el codigo del zip
+        run: |
+          if [ ! -d mod-servermenu ]; then unzip -q -o subir-a-github.zip; fi
+          ls mod-servermenu/src
+
       - name: Bajar el MDK de Forge 1.20.1
         run: |
           curl -sSL -o mdk.zip https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.10/forge-1.20.1-47.4.10-mdk.zip
