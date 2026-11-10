@@ -15,10 +15,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Sacar el codigo del zip
+      - name: Buscar el codigo del mod
         run: |
-          if [ ! -d mod-servermenu ]; then unzip -q -o subir-a-github.zip; fi
-          ls mod-servermenu/src
+          echo "Archivos en el repo:"
+          find . -not -path "./.git/*" -type f | head -50
+          for z in $(find . -name "*.zip" -not -path "./.git/*"); do unzip -q -o "$z" -d extraido || true; done
+          S=$(find . -type d -path "*/src/main/java" -not -path "./.git/*" | head -1)
+          if [ -z "$S" ]; then echo "No encontre el codigo del mod. Sube el zip o la carpeta mod-servermenu."; exit 1; fi
+          echo "SRC=$(dirname $(dirname "$S"))" >> $GITHUB_ENV
 
       - name: Bajar el MDK de Forge 1.20.1
         run: |
@@ -26,7 +30,7 @@ jobs:
           unzip -q mdk.zip -d mdk
           D=$(dirname "$(find mdk -maxdepth 2 -name gradlew | head -1)")
           echo "MDK=$D" >> $GITHUB_ENV
-          rm -rf "$D/src" && cp -r mod-servermenu/src "$D/src"
+          rm -rf "$D/src" && cp -r "$SRC" "$D/src"
           sed -i 's/^mod_id=.*/mod_id=servermenu/; s/^mod_name=.*/mod_name=Server Menu/; s/^mod_group_id=.*/mod_group_id=com.server.servermenu/; s/^mod_version=.*/mod_version=1.0.0/' "$D/gradle.properties"
 
       - name: Compilar
