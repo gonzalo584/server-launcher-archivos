@@ -1,7 +1,9 @@
-name: Compilar mod
+name: Compilar zips
 
 on:
   push:
+    paths:
+      - '**.zip'
   workflow_dispatch:
 
 jobs:
@@ -9,15 +11,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Compilar
+
+      - name: Descomprimir y compilar cada zip
         run: |
-          chmod +x ./gradlew
-          ./gradlew build --no-daemon
+          set -e
+          mkdir -p salida
+          shopt -s globstar nullglob
+          zips=( **/*.zip )
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "No encontré ningún .zip en el repo"; exit 1
+          fi
+          for z in "${zips[@]}"; do
+            nombre=$(basename "$z" .zip)
+            echo "===== Procesando $z ====="
+            rm -rf "trabajo/$nombre"
+            mkdir -p "trabajo/$nombre"
+            unzip -q -o "$z" -d "trabajo/$nombre"
+
+            # Busca la carpeta que tiene build.gradle (aunque esté dentro de otra carpeta)
+            proyecto=$(find "trabajo/$nombre" -name build.gradle -not -path '*/build/*' -printf '%d %h\n' | sort -n | head -1 | cut -d' ' -f2-)
+            if [ -z "$proyecto" ]; then
+              echo "⚠ $z no tiene build.gradle, lo salto"; continue
+            fi
+            echo "Proyecto encontrado en: $proyecto"
+
+            cd "$proyecto"
+            if [ -f gradlew ]; then
+              chmod +x gradlew
+              ./gradlew build --no-daemon
+            else
+              echo "⚠ No trae gradlew, uso Gradle 8.8"
+              wget -q https://services.gradle.org/distributions/gradle-8.8-bin.zip
+              unzip -q gradle-8.8-bin.zip
+              ./gradle-8.8/bin/gradle build --no-daemon
+            fi
+            cd "$GITHUB_WORKSPACE"
+
+            for j in "$proyecto"/build/libs/*.jar; do
+              case "$j" in *-sources.jar|*-slim.jar) continue;; esac
+              cp "$j" salida/
+              echo "✔ Listo: $(basename "$j")"
+            done
+          done
+          ls -la salida
+
       - uses: actions/upload-artifact@v4
         with:
-          name: manzafio-eventos-jar
-          path: build/libs/*.jar
+          name: mods-compilados
+          path: salida/*.jar
+          if-no-files-found: error
